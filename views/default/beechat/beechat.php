@@ -1,22 +1,22 @@
 <?php
-	/**
-	 * Beechat
-	 * 
-	 * @package beechat
-	 * @license http://www.gnu.org/licenses/old-licenses/gpl-2.0.html GNU Public License version 2
-	 * @author Beechannels <contact@beechannels.com>
-	 * @copyright Beechannels 2007-2010
-	 * @link http://beechannels.com/
-	 */
 
-if (isloggedin() && get_loggedin_user()->chatenabled) {
+if (elgg_is_logged_in()) {
+	
+	$home = elgg_echo('beechat:icons:home');
+	$button = elgg_echo('beechat:contacts:button');
+	$minimize = elgg_echo('beechat:box:minimize');
+	
+	$available = elgg_echo('beechat:availability:available');
+	$dnd = elgg_echo('beechat:availability:dnd');
+	$away = elgg_echo('beechat:availability:away');
+	$xa = elgg_echo('beechat:availability:xa');
+	$offline = elgg_echo('beechat:availability:offline');
 
 ?>	 
 <div id="beechat">
   <div id="beechat_left">
-    <a id="beechat_tooltip_trigger" href="<?php echo $vars['url']; ?>"></a>
     <div class="tooltip tooltipchat">
-      <h3><?php echo elgg_echo('beechat:icons:home'); ?></h3>
+      <h3><?php echo $home; ?></h3>
     </div>
   </div>
   <div id="beechat_center">
@@ -26,14 +26,14 @@ if (isloggedin() && get_loggedin_user()->chatenabled) {
   </div>
   <div id="beechat_right">
     <span id="beechat_contacts_button" class="offline">
-      <?php echo elgg_echo('beechat:contacts:button'); ?>
+      <?php echo $button; ?>
     </span>
   </div>
   <div id="beechat_contacts">
     <div id="beechat_contacts_top">
-      <span class="beechat_label"><?php echo elgg_echo('beechat:contacts:button'); ?></span>
+      <span class="beechat_label"><?php echo $button; ?></span>
       <div id="beechat_contacts_controls">
-	<span id="beechat_contacts_control_minimize" class="beechat_control" title="<?php echo elgg_echo('beechat:box:minimize'); ?>">_</span>
+	<span id="beechat_contacts_control_minimize" class="beechat_control" title="<?php echo $minimize; ?>">_</span>
       </div>
       <br clear="all" />
     </div>
@@ -44,11 +44,11 @@ if (isloggedin() && get_loggedin_user()->chatenabled) {
     <div id="beechat_contacts_content">
       <ul id="beechat_contacts_list"></ul>
       <ul id="beechat_availability_switcher_list">
-	<li class="beechat_left_availability_chat"><?php echo elgg_echo('beechat:availability:available'); ?></li>
-	<li class="beechat_left_availability_dnd"><?php echo elgg_echo('beechat:availability:dnd'); ?></li>
-	<li class="beechat_left_availability_away"><?php echo elgg_echo('beechat:availability:away'); ?></li>
-	<li class="beechat_left_availability_xa"><?php echo elgg_echo('beechat:availability:xa'); ?></li>
-	<li class="beechat_left_availability_offline"><?php echo elgg_echo('beechat:availability:offline'); ?></li>
+	<li class="beechat_left_availability_chat"><?php echo $available ?></li>
+	<li class="beechat_left_availability_dnd"><?php echo $dnd; ?></li>
+	<li class="beechat_left_availability_away"><?php echo $away; ?></li>
+	<li class="beechat_left_availability_xa"><?php echo $xa ?></li>
+	<li class="beechat_left_availability_offline"><?php echo $offline ?></li>
       </ul>
     </div>
     <div id="beechat_contacts_bottom">
@@ -64,22 +64,12 @@ if (isloggedin() && get_loggedin_user()->chatenabled) {
        enablejavascript="true" />
 -->
 
-<?php
-        $ts = time();
-        $token = generate_action_token($ts);
-?>
-
 <script>
 	$(function () {
-		var e = document.createElement('script');
-		e.async = true;
-		e.type = 'text/javascript';
-                e.text = 'init_beechat("<?php echo $ts; ?>","<?php echo $token; ?>");';
-                document.getElementById('beechat').appendChild(e);
-
-	})
+		init_beechat("<?php echo time(); ?>","<?php echo generate_action_token($ts); ?>");
+	});
 </script>       
 
 <?php
- }
+}
 ?>

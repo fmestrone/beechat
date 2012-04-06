@@ -93,16 +93,6 @@ BeeChat = {
 	    RECV_PRESENCE: 2,
 	    RECV_CHAT_MESSAGE: 3
 	},
-	Messages: {
-	    ConnectionStates: {
-		CONNECTING: "<?php echo elgg_echo('beechat:connection:state:connecting'); ?>",
-		AUTHENTICATING: "<?php echo elgg_echo('beechat:connection:state:authenticating'); ?>",
-		FAILED: "<?php echo elgg_echo('beechat:connection:state:failed'); ?>",
-		DISCONNECTING: "<?php echo elgg_echo('beechat:connection:state:disconnecting'); ?>",
-		OFFLINE: "<?php echo elgg_echo('beechat:connection:state:offline'); ?>",
-		ONLINE: "<?php echo elgg_echo('beechat:connection:state:online'); ?>"
-	    }
-	}
     }
 };
 
@@ -384,7 +374,7 @@ BeeChat.Core.User = function(jid)
     }
     this.joinRoom = function(roomname, room_guid) {
 	    var roomJid = roomname;
-	    _connection['muc'].join(roomJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, false, false, '');
+	    _connection['muc'].join(roomJid, elgg.get_logged_in_user_entity().name, false, false, '');
 	    if (!(roomJid in g_beechat_rooms)) {
 		    g_beechat_rooms[roomJid] = room_guid;
 		    $.ajax({
@@ -402,7 +392,7 @@ BeeChat.Core.User = function(jid)
 		var contactBareJid = $(this).attr('bareJid');
 		var isroom = ($(this).attr('isroom')=='true')?true:false;
 		if (isroom) {
-		    _connection['muc'].join(contactBareJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, false, false, '');
+		    _connection['muc'].join(contactBareJid, elgg.get_logged_in_user_entity().name, false, false, '');
 		}
 	});
     }
@@ -414,7 +404,7 @@ BeeChat.Core.User = function(jid)
 				async: true   });
 
 	    }
-	    _connection['muc'].leave(roomJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, function(){});
+	    _connection['muc'].leave(roomJid, elgg.get_logged_in_user_entity().name, function(){});
     }
 
     /** PrivateFunction: _onConnect
@@ -430,21 +420,21 @@ BeeChat.Core.User = function(jid)
 
 	if (status == Strophe.Status.CONNECTING) 
 {
-	    msg = BeeChat.Events.Messages.ConnectionStates.CONNECTING;
+	    msg = elgg.echo('beechat:connection:state:connecting');
 	}
 	else if (status == Strophe.Status.AUTHENTICATING) {
-	    msg = BeeChat.Events.Messages.ConnectionStates.AUTHENTICATING;
+	    msg = elgg.echo('beechat:connection:state:authenticating');
 	}
 	else if (status == Strophe.Status.AUTHFAIL)
-	    msg = BeeChat.Events.Messages.ConnectionStates.FAILED;
+	    msg = elgg.echo('beechat:connection:state:failed');
  	else if (status == Strophe.Status.CONNFAIL)
-	    msg = BeeChat.Events.Messages.ConnectionStates.FAILED;
+	    msg = elgg.echo('beechat:connection:state:failed');
  	else if (status == Strophe.Status.DISCONNECTING)
-	    msg = BeeChat.Events.Messages.ConnectionStates.DISCONNECTING;
+	    msg = elgg.echo('beechat:connection:state:disconnecting');
  	else if (status == Strophe.Status.DISCONNECTED)
-	    msg = BeeChat.Events.Messages.ConnectionStates.OFFLINE;
+	    msg = elgg.echo('beechat:connection:state:offline');
  	else if (status == Strophe.Status.CONNECTED) {
-	    msg = BeeChat.Events.Messages.ConnectionStates.ONLINE;
+	    msg = elgg.echo('beechat:connection:state:online');
 	    _connection.addHandler(_onIQResult, null, 'iq', BeeChat.IQ.Types.RESULT, null, null);
 	    _connection.addHandler(_onPresence, null, 'presence', null, null, null);
 	    _connection.addHandler(_onMessageChat, null, 'message', BeeChat.Message.Types.CHAT, null, null);
@@ -922,33 +912,6 @@ BeeChat.UI = {
 	    FILENAME_WINK: 'emoticon_wink.png'
 	},
 
-	Strings: {
-	    Availability: {
-		AVAILABLE: "<?php echo elgg_echo('beechat:availability:available'); ?>",
-		CHAT: "<?php echo elgg_echo('beechat:availability:available'); ?>",
-		ONLINE: "<?php echo elgg_echo('beechat:availability:available'); ?>",
-		DND: "<?php echo elgg_echo('beechat:availability:dnd'); ?>",
-		AWAY: "<?php echo elgg_echo('beechat:availability:away'); ?>",
-		XA:"<?php echo elgg_echo('beechat:availability:xa'); ?>",
-		OFFLINE: "<?php echo elgg_echo('beechat:availability:offline'); ?>"
-	    },
-
-	    Contacts: {
-		BUTTON: "<?php echo elgg_echo('beechat:contacts:button'); ?>"
-	    },
-
-	    ChatMessages: {
-		SELF: "<?php echo $_SESSION['user']->name; ?>",
-		COMPOSING: "<?php echo elgg_echo('beechat:chat:composing'); ?>"
-	    },
-
-	    Box: {
-		MINIMIZE: "<?php echo elgg_echo('beechat:box:minimize'); ?>",
-		CLOSE: "<?php echo elgg_echo('beechat:box:close'); ?>",
-		SHOWHIDE: "<?php echo elgg_echo('beechat:box:showhide'); ?>"
-	    }
-	},
-
 	StyleClasses: {
 	    Availability: {
 		Left: {
@@ -1141,7 +1104,7 @@ BeeChat.UI = {
     updateConnectionStatus: function(connStatusMsg)
     {
 	BeeChat.UI.ContactsList.updateButtonText(connStatusMsg);
-	if (connStatusMsg == BeeChat.Events.Messages.ConnectionStates.ONLINE) {
+	if (connStatusMsg == elgg.echo('beechat:connection:state:online')) {
 	    if (!g_beechat_user.isAttached()) {
 		BeeChat.UI.ScrollBoxes.isOpened = true;
 		g_beechat_user.requestRoster();
@@ -1165,7 +1128,7 @@ BeeChat.UI = {
 	    $('#' + BeeChat.UI.Resources.Elements.ID_SPAN_CONTACTS_BUTTON).attr('class', 'online');
 	    BeeChat.UI.saveConnection();
 	}
-	else if (connStatusMsg == BeeChat.Events.Messages.ConnectionStates.OFFLINE) {
+	else if (connStatusMsg == elgg.echo('beechat:connection:state:offline')) {
 	    var contactsBoxElm = $('#' + BeeChat.UI.Resources.Elements.ID_DIV_CONTACTS);
 
 	    if (!contactsBoxElm.is(':hidden'))
@@ -1173,7 +1136,7 @@ BeeChat.UI = {
 
 	    $('#' + BeeChat.UI.Resources.Elements.ID_UL_CONTACTS_LIST).empty();
 	    BeeChat.UI.AvailabilitySwitcher.initialize(BeeChat.Presence.ShowElements.CHAT);
-	    BeeChat.UI.ContactsList.updateButtonText(BeeChat.UI.Resources.Strings.Contacts.BUTTON);
+	    BeeChat.UI.ContactsList.updateButtonText(elgg.echo('beechat:contacts:button'));
 	    $('#' + BeeChat.UI.Resources.Elements.ID_SPAN_CONTACTS_BUTTON).attr('class', 'offline');
 	    $('.' + BeeChat.UI.Resources.StyleClasses.ChatBox.INPUT + '>textarea').attr('disabled', 'true');
 	    $('#' + BeeChat.UI.Resources.Elements.ID_DIV_CHATBOXES).children().hide();
@@ -1574,7 +1537,7 @@ BeeChat.UI.ContactsList = {
 	    BeeChat.UI.ContactsList.updateContactAvailability(contactElm, key);
 	}
 
-	BeeChat.UI.ContactsList.updateButtonText(BeeChat.UI.Resources.Strings.Contacts.BUTTON + ' (<strong>' + g_beechat_user.getRoster().getSizeOnlineItems() + '</strong>)');
+	BeeChat.UI.ContactsList.updateButtonText(elgg.echo('beechat:contacts:button') + ' (<strong>' + g_beechat_user.getRoster().getSizeOnlineItems() + '</strong>)');
     },
 
     /** Function: updateContactAvailability
@@ -1676,10 +1639,15 @@ BeeChat.UI.AvailabilitySwitcher = {
     update: function(availability)
     {
 	var upperCasedAvailability = availability.toUpperCase();
+	var lowerCasedAvailability = availability.toLowerCase();
+	
+	if (lowerCasedAvailability == 'chat' || lowerCasedAvailability == 'online') {
+		lowerCasedAvailability = 'available';
+	}
 
 	$('#' + BeeChat.UI.Resources.Elements.ID_SPAN_CURRENT_AVAILABILITY)
 	.attr('class', BeeChat.UI.Resources.ReferenceTables.Styles.Availability.Left[upperCasedAvailability])
-	.text(BeeChat.UI.Resources.Strings.Availability[upperCasedAvailability]);
+	.text(elgg.echo('beechat:availability:' + lowerCasedAvailability));
 
 	if (availability == 'chat')
 	    $('#' + BeeChat.UI.Resources.Elements.ID_SPAN_CONTACTS_BUTTON).attr('class', 'online');
@@ -1795,13 +1763,13 @@ BeeChat.UI.ScrollBoxes = {
 		.attr('class', BeeChat.UI.Resources.StyleClasses.LABEL + ' ' + availClass)
 		.attr('bareJid', contactBareJid)
 		.attr('isroom', isroom?'true':'false')
-		.attr('title', BeeChat.UI.Resources.Strings.Box.SHOWHIDE)
+		.attr('title', elgg.echo('beechat:box:showhide'))
 		.text(BeeChat.UI.Utils.getTruncatedContactName(contactBareJid, 11))
 		.append($('<span></span>')
 			.attr('class', BeeChat.UI.Resources.StyleClasses.BOX_CONTROL)
 			.attr('id', BeeChat.UI.Resources.Elements.ID_SPAN_CLOSE_BOX)
 			.text('X')
-			.attr('title', BeeChat.UI.Resources.Strings.Box.CLOSE)
+			.attr('title', elgg.echo('beechat:box:close'))
 			.bind('click', function() {
 				if (isroom)
 					g_beechat_user.leaveRoom(contactBareJid);
@@ -1947,7 +1915,7 @@ BeeChat.UI.ChatBoxes = {
 				.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.CONTROL)
 				.attr('id', BeeChat.UI.Resources.Elements.ID_SPAN_CLOSE_BOX)
 				.text('X')
-				.attr('title', BeeChat.UI.Resources.Strings.Box.CLOSE)
+				.attr('title', elgg.echo('beechat:box:close'))
 				.bind('click', function() {
 					if (isroom)
 						g_beechat_user.leaveRoom(contactBareJid);
@@ -1957,7 +1925,7 @@ BeeChat.UI.ChatBoxes = {
 				.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.CONTROL)
 				.attr('id', BeeChat.UI.Resources.Elements.ID_SPAN_CLOSE_BOX)
 				.text('_')
-				.attr('title', BeeChat.UI.Resources.Strings.Box.MINIMIZE)
+				.attr('title', elgg.echo('beechat:box:minimize'))
 				.css({'font-size': '1.6em', 'position': 'relative', 'line-height': '4px'})
 				.bind('click', function() {
 					BeeChat.UI.ScrollBoxes.unselect($(this).parent().parent().parent().attr('bareJid'));
@@ -2060,7 +2028,7 @@ BeeChat.UI.ChatBoxes = {
 	if (keyCode == 13 && $(self).val() != '') {
 	    g_beechat_user.sendChatMessage(contactBareJid, jQuery.trim($(self).val()), msgtype);
 	    if (!isroom)
-	    	BeeChat.UI.ChatBoxes.update(contactBareJid, BeeChat.UI.Utils.truncateString(BeeChat.UI.Resources.Strings.ChatMessages.SELF, 24), $(self).val(), isroom);
+	    	BeeChat.UI.ChatBoxes.update(contactBareJid, BeeChat.UI.Utils.truncateString(elgg.get_logged_in_user_entity().name, 24), $(self).val(), isroom);
 	    clearTimeout(BeeChat.UI.ChatBoxes.lastTimedPauses[contactBareJid]);
 	    BeeChat.UI.ChatBoxes.lastTimedPauses[contactBareJid] = null;
 	} else {
@@ -2154,12 +2122,12 @@ BeeChat.UI.ChatBoxes = {
 
 	if (chatBoxElm.is(':hidden')) {
 	    BeeChat.UI.UnreadCountBox.update(contactBareJid);
-	    if (BeeChat.UI.HAS_FOCUS)
-	    	DHTMLSound();
+//	    if (BeeChat.UI.HAS_FOCUS)
+//		document.getElementById(BeeChat.UI.Resources.Sounds.NEW_MESSAGE).Play();
 	}
 
-	if (!BeeChat.UI.HAS_FOCUS)
-		DHTMLSound();
+//	if (!BeeChat.UI.HAS_FOCUS)
+//	    document.getElementById(BeeChat.UI.Resources.Sounds.NEW_MESSAGE).Play();
     },
 
     /** Function: updateChatState
@@ -2174,7 +2142,7 @@ BeeChat.UI.ChatBoxes = {
 		    if (chatBoxContentElm.find('p').filter('[class=' + BeeChat.UI.Resources.StyleClasses.ChatBox.STATE + ']').length == 0) {
 			$('<p></p>')
 			    .attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.STATE)
-			    .html(BeeChat.UI.Utils.getContactName(contactBareJid) + BeeChat.UI.Resources.Strings.ChatMessages.COMPOSING + "</br />")
+			    .html(BeeChat.UI.Utils.getContactName(contactBareJid) + elgg.echo('beechat:chat:composing') + "</br />")
 			    .appendTo(chatBoxContentElm);
 		    }
 		} else if (this.tagName == BeeChat.Message.ChatStates.PAUSED) {
