@@ -118,7 +118,7 @@ function ejabberd_friend_command($user, $friend, $command, $is_out) { // $user a
          	error_log(" * beechat: friend is foreign!");       
 		return;
 	}
-	$param = array("user" => friendly_title($friend->username),
+	$param = array("user" => elgg_get_friendly_title($friend->username),
 			"server" => get_plugin_setting("domain", "beechat"),
 	 		"from" => ejabberd_getjid($user),
 			"subs" => $command);

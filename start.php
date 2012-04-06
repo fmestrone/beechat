@@ -116,22 +116,7 @@ function beechat_notifications($from, $to, $subject, $topic, $params = array()) 
 	ejabberd_send_chat($to, "<div>".$topic."</div>");
 }
 
-
-function beechat_friendly_title($title) {
-	// need this because otherwise seems elgg
-	// gets in some problem trying to call the view
-	//$title = iconv('UTF-8', 'ASCII//TRANSLIT', $title);
-	$title = preg_replace("/[^\w ]/","",$title);
-	$title = str_replace(" ","-",$title);
-	$title = str_replace("--","-",$title);
-	$title = trim($title);
-	$title = strtolower($title);
-	return $title;
-}
-
-
-function beechat_xmpp_approve_friendx($hook, $entity_type, $returnvalue, $params)
-{
+function beechat_xmpp_approve_friendx($hook, $entity_type, $returnvalue, $params) {
 	//ejabberd_send_chat($to, "<div>".$topic."</div>");
 	$action_type = $params['action_type'];
 	$object_guid = $params['object_guid'];

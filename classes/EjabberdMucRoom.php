@@ -34,7 +34,7 @@ class EjabberdMucRoom {
 	function setAffiliation($member, $affiliation) {
 		$group = $this->group;
 		ejabberd_xmlrpc_command('muc_room_set_affiliation', array(
-			"name" => friendly_title($group->name),
+			"name" => elgg_get_friendly_title($group->name),
 			"service" => get_plugin_setting("groupdomain", "beechat"),
 			"jid" => xmpp_escape($member->username) . '@' . elgg_get_plugin_setting("domain", "beechat"),
 			"affiliation" => $affiliation,
