@@ -82,7 +82,7 @@ function beechat_init() {
 }
 
 
-function beechat_create_group($event, $object_type, $object) {
+function beechat_create_group($event, $object_type, $object){
 	elgg_load_library('elgg:beechat');
 	ejabberd_create_group($object);
 }
@@ -92,32 +92,27 @@ function beechat_delete_group($event, $object_type, $object) {
 	ejabberd_destroy_group($object);
 }
 
-function beechat_member_add($event, $object_type, $object)
-    {
-	global $CONFIG;
-	if ($object->relationship === "member") {
+function beechat_member_add($event, $object_type, $object) {
+	if ($object->relationship == "member") {
 		$user = get_entity($object->guid_one);
 		$group = get_entity($object->guid_two);
-		require_once($CONFIG->pluginspath . "beechat/lib.php");
 		$room = new EjabberdMucRoom($group);
 		$room->addMember($user);
 	}
-    }
+}
 
-function beechat_member_delete($event, $object_type, $object)
-    {
-	global $CONFIG;
-	if ($object->relationship === "member") {
+function beechat_member_delete($event, $object_type, $object) {
+	if ($object->relationship == "member") {
 		$user = get_entity($object->guid_one);
 		$group = get_entity($object->guid_two);
-		require_once($CONFIG->pluginspath . "beechat/lib.php");
 		$room = new EjabberdMucRoom($group);
 		$room->setAffiliation($user, "none");
 	}
-    }
+}
 
-
+	
 function beechat_notifications($from, $to, $subject, $topic, $params = array()) {
+	elgg_load_library('elgg:beechat');
 	ejabberd_send_chat($to, "<div>".$topic."</div>");
 }
 
@@ -134,121 +129,80 @@ function beechat_friendly_title($title) {
 	return $title;
 }
 
-function beechat_pagesetup()
-{
-	global $CONFIG;
-	if (get_context() == 'groups' && isloggedin()) {
-		if (get_plugin_setting("groupdomain", "beechat")) {
-			$user = get_loggedin_user();
-			$group = page_owner_entity();
-			if (!$group || !($group instanceof ElggGroup))
-				return;
-			if ($user->chatenabled && get_plugin_setting("groupdomain", "beechat")) {
-				if ($group->isPublicMembership() || $group->isMember($user))
-				add_submenu_item(elgg_echo('beechat:chatroom'), "javascript:g_beechat_user.joinRoom('".beechat_friendly_title($group->name)."@".$CONFIG->chatsettings['groupdomain']."', '".$group->guid."')");
-			}
-		}
-	}
-	elseif (get_context() == 'settings' && isloggedin()) {
-		if (get_loggedin_user()->chatenabled) {
-			add_submenu_item(elgg_echo('beechat:disablechat'), $CONFIG->wwwroot . "mod/beechat/disablechat.php");
-		}
-		else
-			add_submenu_item(elgg_echo('beechat:enablechat'), $CONFIG->wwwroot . "mod/beechat/enablechat.php");
-	}
-}
 
 function beechat_xmpp_approve_friendx($hook, $entity_type, $returnvalue, $params)
 {
 	//ejabberd_send_chat($to, "<div>".$topic."</div>");
 	$action_type = $params['action_type'];
-	if ($action_type == 'friend' && ($hook == 'river_update'||$hook == 'river_update_foreign'))
-	{
-    		$object_guid = $params['object_guid'];
+	$object_guid = $params['object_guid'];
+	if ($action_type == 'friend' && ($hook == 'river_update'|| $hook == 'river_update_foreign')) {
 		set_input('guid', $object_guid);
 		beechat_xmpp_approve_friend($hook, $entity_type, $returnvalue, $params);
 	}
 	return $return_value;
 
 }
-function beechat_xmpp_approve_friend($hook, $entity_type, $returnvalue, $params)
-{
-	GLOBAL $SESSION;
-	if (!$friend = get_entity(get_input('guid', 0)))
-		return (false);
-	global $CONFIG;
-	require_once($CONFIG->pluginspath . "beechat/lib.php");
-	ejabberd_friend_accept(get_loggedin_user(), $friend);
+function beechat_xmpp_approve_friend($hook, $entity_type, $returnvalue, $params) {
+	global $SESSION;
+	if (!$friend = get_entity(elgg_get_input('guid', 0))){
+		return false;
+	}
+	elgg_load_library('elgg:beechat');
+	ejabberd_friend_accept(elgg_get_logged_in_user_entity(), $friend);
 	return $returnvalue;
-//	return _beechat_xmpp_add_friend(get_loggedin_user(), $friend);
 }
 
-function beechat_xmpp_decline_friend($hook, $entity_type, $returnvalue, $params)
-{
+function beechat_xmpp_decline_friend($hook, $entity_type, $returnvalue, $params) {
 	// in case later we want better integration with xmpp ;)
 	GLOBAL $SESSION;
-	if (!$friend = get_entity(get_input('guid', 0)))
-		return (false);
-	// ..
-	global $CONFIG;
-	require_once($CONFIG->pluginspath . "beechat/lib.php");
-	ejabberd_friend_deny(get_loggedin_user(), $friend);
+	if (!$friend = get_entity(elgg_get_input('guid', 0))){
+		return false;
+	}
+	elgg_load_library('elgg:beechat');
+	ejabberd_friend_deny(elgg_get_logged_in_user_entity(), $friend);
 	return $returnvalue;
 }
-function beechat_xmpp_add_friendx($event, $object_type, $obj)
-{
-	if ($event == "create" && $object_type == 'friendrequest')
-	{
-		if ($obj->relationship == 'friendrequest')
-		{
+function beechat_xmpp_add_friendx($event, $object_type, $obj) {
+	if ($event == "create" && $object_type == 'friendrequest') {
+		if ($obj->relationship == 'friendrequest') {
 			set_input('friend', $obj->guid_two);
 			beechat_xmpp_add_friend('', 'relationship', true, $params);
 		}
 	}
 }
 
-function beechat_xmpp_add_friend($hook, $entity_type, $returnvalue, $params)
-{
+function beechat_xmpp_add_friend($hook, $entity_type, $returnvalue, $params) {
 	GLOBAL $SESSION;
-	$friend_guid = get_input('friend', 0);
-	if (!$friend_guid || !$friend = get_entity($friend_guid))
-		return (false);
-	global $CONFIG;
-	require_once($CONFIG->pluginspath . "beechat/lib.php");
+	$friend_guid = elgg_get_input('friend', 0);
+	if (!$friend_guid || !$friend = get_entity($friend_guid)) {
+		return false;
+	}
+	elgg_load_library('elgg:beechat');
 	// for now.. do this in approve
 	ejabberd_friend_request(get_loggedin_user(), $friend);
 	//return _beechat_xmpp_add_friend($SESSION->offsetGet('user'), $friend);
 	return $returnvalue;
 }
-function beechat_xmpp_remove_friend($hook, $entity_type, $returnvalue, $params)
-{
+function beechat_xmpp_remove_friend($hook, $entity_type, $returnvalue, $params) {
 	GLOBAL $SESSION;
-	if (!$friend = get_entity(get_input('friend', 0)))
+	if (!$friend = get_entity(get_input('friend', 0))) {
 		return (false);
-	global $CONFIG;
-	require_once($CONFIG->pluginspath . "beechat/lib.php");
-	ejabberd_friend_remove(get_loggedin_user(), $friend);
+	}
+	elgg_load_library('elgg:beechat');
+	ejabberd_friend_remove(elgg_get_logged_in_user_entity(), $friend);
 	//_beechat_xmpp_remove_friend($SESSION->offsetGet('user'), $friend);
 	return $returnvalue;
 }
 
 function ejabberd_send_chat($user, $body) { // $user adds $friend
-	global $CONFIG;
-	$from = 'notify@'.get_plugin_setting("domain", "beechat").'/net';
-	if ($user->alias) {
-		
-	}
-	require_once($CONFIG->pluginspath . "beechat/lib.php");
-	$to = ejabberd_getjid($user, true);
-            #xmlrpc_set_type(&$body, "base64"); 
-	$param = array("body"=>$body,
-			"from"=>$from,
-			"to"=>$to);
-	ejabberd_xmlrpc_command('send_html_message', $param);
+	elgg_load_library('elgg:beechat');
+	//xmlrpc_set_type(&$body, "base64"); 
+	ejabberd_xmlrpc_command('send_html_message', array(
+		"body" => $body,
+		"from" => 'notify@'.get_plugin_setting("domain", "beechat").'/net',
+		"to" => ejabberd_getjid($user, true),
+	));
 }
-
-
-
 
 function _beechat_xmpp_add_friend($curr_user, $friend)
 {
@@ -262,8 +216,7 @@ function _beechat_xmpp_add_friend($curr_user, $friend)
 	$user = $CONFIG->chatsettings['dbuser'];
 	$password = $CONFIG->chatsettings['dbpassword'];
 
-	try
-	{
+	try {
 		$dbh_ejabberd = new PDO($dsn_ejabberd, $user, $password);
 		$dbh_ejabberd->beginTransaction();
 		
@@ -291,9 +244,8 @@ function _beechat_xmpp_add_friend($curr_user, $friend)
 		
 		$dbh_ejabberd->commit();
 		$dbh_ejabberd = null;
-	} 
-	catch (PDOException $e)
-	{
+		
+	} catch (PDOException $e) {
 		$dbh_ejabberd->rollBack();
 		return (false);
 	}
@@ -303,10 +255,9 @@ function _beechat_xmpp_add_friend($curr_user, $friend)
 
 
 
-function _beechat_xmpp_remove_friend($curr_user, $friend)
-{
-GLOBAL $SESSION;
-GLOBAL $CONFIG;
+function _beechat_xmpp_remove_friend($curr_user, $friend) {
+	GLOBAL $SESSION;
+	GLOBAL $CONFIG;
 	
 	$jabber_domain = $CONFIG->chatsettings['domain'];
 	$dbname = $CONFIG->chatsettings['dbname'];
@@ -316,35 +267,34 @@ GLOBAL $CONFIG;
 	$user = $CONFIG->chatsettings['dbuser'];
 	$password = $CONFIG->chatsettings['dbpassword'];
 
-try {
-	$dbh_ejabberd = new PDO($dsn_ejabberd, $user, $password);
-	$dbh_ejabberd->beginTransaction();
-	
-	$sql = 'DELETE FROM rosterusers WHERE username = ? AND jid = ?;';
-	$sth_ejabberd = $dbh_ejabberd->prepare($sql);
-	
-	$username = $curr_user->username;
-	$jid = $friend->username . '@' . $jabber_domain;
-	
-	$sth_ejabberd->execute(array($username, $jid));
-	
-	$sql = 'DELETE FROM rosterusers WHERE username = ? AND jid = ?;';
-	$sth_ejabberd = $dbh_ejabberd->prepare($sql);
-	
-	$username = $friend->username;
-	$jid = $curr_user->username . '@' . $jabber_domain;
-	
-	$sth_ejabberd->execute(array($username, $jid));
-	
-	$dbh_ejabberd->commit();
-	$dbh_ejabberd = null;	
-} 
-catch (PDOException $e)
-{
-	$dbh_ejabberd->rollBack();
-	return (false);
-}
+	try {
+		$dbh_ejabberd = new PDO($dsn_ejabberd, $user, $password);
+		$dbh_ejabberd->beginTransaction();
+		
+		$sql = 'DELETE FROM rosterusers WHERE username = ? AND jid = ?;';
+		$sth_ejabberd = $dbh_ejabberd->prepare($sql);
+		
+		$username = $curr_user->username;
+		$jid = $friend->username . '@' . $jabber_domain;
+		
+		$sth_ejabberd->execute(array($username, $jid));
+		
+		$sql = 'DELETE FROM rosterusers WHERE username = ? AND jid = ?;';
+		$sth_ejabberd = $dbh_ejabberd->prepare($sql);
+		
+		$username = $friend->username;
+		$jid = $curr_user->username . '@' . $jabber_domain;
+		
+		$sth_ejabberd->execute(array($username, $jid));
+		
+		$dbh_ejabberd->commit();
+		$dbh_ejabberd = null;
+		
+	} catch (PDOException $e) {
+		$dbh_ejabberd->rollBack();
+		return (false);
+	}
 
-return $return_value;
+	return $return_value;
 }
 
