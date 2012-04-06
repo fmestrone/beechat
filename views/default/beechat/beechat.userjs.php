@@ -36,4 +36,19 @@ BeeChat.UI.Resources.Strings = {
 		SHOWHIDE: "<?php echo elgg_echo('beechat:box:showhide'); ?>"
 	    }
 	}
+g_user_rooms = new Array();
+<?php
+if (isloggedin()) {
+	$user = get_loggedin_user();
+	$chatrooms = elgg_get_entities_from_relationship(array('relationship' => 'groupchat',
+								'relationship_guid' => $user->guid,
+								'inverse_relationship' => false,
+								'limit' => 0));
+	if (!empty($chatrooms)) {
+	  foreach($chatrooms as $chatroom) {
+	    echo "g_user_rooms.push(['".beechat_friendly_title($chatroom->name)."@".get_plugin_setting("groupdomain", "beechat")."', '".$chatroom->guid."']);";
+	  }
+	}
+}
+?>
 </script>

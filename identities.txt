@@ -1,0 +1,15 @@
+- user
+   - local:
+       -            --> localuser + '@' + localhost
+   - webid
+       - http://... --> user + '@' + host AND localuser + localhost
+       - xmpp:...   --> jid
+       - att:...    --> (user + '@' + host OR webiduser) AND localuser + localhost
+   - alias (openid)
+       - email or http://.. (but store only http) --> infere from http AND local
+   - jid
+       - xmpp:...
+
+-------------------------------------
+
+

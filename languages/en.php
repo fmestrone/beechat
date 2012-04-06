@@ -29,10 +29,15 @@ $en_array = array(
 		  'beechat:enablechat' => 'Enable chat',
 		  'beechat:disablechat' => 'Disable chat',
 		  'beechat:domain' => 'Chat domain',
+		  'beechat:groupdomain' => 'MUC domain',
+		  'beechat:chatroom' => 'Group chat',
 		  'beechat:dbname' => 'Database name',
 		  'beechat:dbhost' => 'Database host',
 		  'beechat:dbuser' => 'Database user',
-		  'beechat:dbpassword' => 'Database password'
+		  'beechat:dbuser' => 'notification:method:xmpp',
+		  'notification:method:xmpp' => 'Xmpp/Jabber',
+		  'beechat:dbpassword' => 'Database password',
+		  'beechat:xmlrpcip' => 'Ejabberd IP'
 		  );
 
 add_translation('en', $en_array);

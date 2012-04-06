@@ -9,8 +9,9 @@
 	 * @link http://beechannels.com/
 	 */
 
-if (isloggedin() && !get_loggedin_user()->chatdisabled) {
-?>
+if (isloggedin() && get_loggedin_user()->chatenabled) {
+
+?>	 
 <div id="beechat">
   <div id="beechat_left">
     <a id="beechat_tooltip_trigger" href="<?php echo $vars['url']; ?>"></a>
@@ -57,7 +58,11 @@ if (isloggedin() && !get_loggedin_user()->chatdisabled) {
   <div id="beechat_chatboxes"></div>
 </div>
 <!-- SOUNDS -->
-<span id="beechatpock"></span>
+<!--
+<embed src="<?php echo $vars['config']->staticurl; ?>mod/beechat/sounds/newmessage.wav" autostart=false width=0 height=0
+       id="beechat_sounds_new_message"
+       enablejavascript="true" />
+-->
 
 <?php
         $ts = time();
@@ -69,10 +74,10 @@ if (isloggedin() && !get_loggedin_user()->chatdisabled) {
 		var e = document.createElement('script');
 		e.async = true;
 		e.type = 'text/javascript';
-        e.text = 'init_beechat("<?php echo $ts; ?>","<?php echo $token; ?>");';
-        document.getElementById('beechat').appendChild(e);
+                e.text = 'init_beechat("<?php echo $ts; ?>","<?php echo $token; ?>");';
+                document.getElementById('beechat').appendChild(e);
 
-	});
+	})
 </script>       
 
 <?php

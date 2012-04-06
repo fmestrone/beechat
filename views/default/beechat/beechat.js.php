@@ -13,6 +13,7 @@
  */
 g_beechat_user = null;
 g_beechat_roster_items = null;
+g_beechat_rooms = new Array();
 
 /** Class: BeeChat
  *  An object container for all BeeChat mod functions
@@ -320,10 +321,12 @@ BeeChat.Core.User = function(jid)
      *    (String) msg - The chat message
      *
      */
-    this.sendChatMessage = function(addressee, msg)
+    this.sendChatMessage = function(addressee, msg, msgtype)
     {
+	if (msgtype == null)
+		msgtype = BeeChat.Message.Types.CHAT;
 	var req = $msg({
-		type: BeeChat.Message.Types.CHAT,
+		type: msgtype,
 		to: addressee,
 		from: _connection.jid
 	    }).c('body').t(msg).up().c(BeeChat.Message.ChatStates.ACTIVE, {xmlns: BeeChat.NS.CHAT_STATES});
@@ -379,6 +382,40 @@ BeeChat.Core.User = function(jid)
 		_funcs[eventType][i].call((scope || window), data);
 	}
     }
+    this.joinRoom = function(roomname, room_guid) {
+	    var roomJid = roomname;
+	    _connection['muc'].join(roomJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, false, false, '');
+	    if (!(roomJid in g_beechat_rooms)) {
+		    g_beechat_rooms[roomJid] = room_guid;
+		    $.ajax({
+			url: BeeChat.UI.addActionTokens('<?php echo $vars['url'] . "action/beechat/join_groupchat?group_guid="; ?>'+room_guid, '&'),
+			async: true   });
+	    }
+
+
+    }
+
+    this.reconnectRooms = function() {
+	$('#' + BeeChat.UI.Resources.Elements.ID_DIV_CHATBOXES).children().each(function() {
+		if (roomJid in g_beechat_rooms)
+			delete g_beechat_rooms[roomJid];
+		var contactBareJid = $(this).attr('bareJid');
+		var isroom = ($(this).attr('isroom')=='true')?true:false;
+		if (isroom) {
+		    _connection['muc'].join(contactBareJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, false, false, '');
+		}
+	});
+    }
+
+    this.leaveRoom = function(roomJid) {
+	    if (roomJid in g_beechat_rooms) {
+			$.ajax({
+				url: BeeChat.UI.addActionTokens('<?php echo $vars['url'] . "action/beechat/leave_groupchat?group_guid="; ?>'+g_beechat_rooms[roomJid], '&'),
+				async: true   });
+
+	    }
+	    _connection['muc'].leave(roomJid, BeeChat.UI.Resources.Strings.ChatMessages.SELF, function(){});
+    }
 
     /** PrivateFunction: _onConnect
      *  Connection state manager
@@ -411,7 +448,7 @@ BeeChat.Core.User = function(jid)
 	    _connection.addHandler(_onIQResult, null, 'iq', BeeChat.IQ.Types.RESULT, null, null);
 	    _connection.addHandler(_onPresence, null, 'presence', null, null, null);
 	    _connection.addHandler(_onMessageChat, null, 'message', BeeChat.Message.Types.CHAT, null, null);
-
+	    _connection.addHandler(_onMessageChatRoom, null, 'message', BeeChat.Message.Types.GROUPCHAT, null, null);
 	}
 
 	_fire(BeeChat.Events.Identifiers.UPDATE_CONNECTION_STATE, msg);
@@ -441,6 +478,46 @@ BeeChat.Core.User = function(jid)
      */
     function _onPresence(presence)
     {
+	var xquery = presence.getElementsByTagName("x");
+	debugXMPP('_onPresence'+xquery);
+	if (xquery.length > 0)
+	{
+	    //Ignore MUC user protocol
+	    for (var i = 0; i < xquery.length; i++)
+	    {
+		var xmlns = xquery[i].getAttribute("xmlns");
+		if (xmlns && xmlns.match(Strophe.NS.MUC + '#user'))
+		{
+			var contactBareJid = $(presence).attr('from').split('/')[0];
+			var userNick = $(presence).attr('from').split('/')[1];
+			var chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
+			if ($(presence).attr('type') != 'unavailable') {
+				BeeChat.UI.ChatBoxes.updateRoster(contactBareJid, userNick, presence);
+			}
+			else {
+				if (chatBoxElm.length) {
+					BeeChat.UI.ChatBoxes.updateRoster(contactBareJid, userNick, presence);
+				}
+			}
+			return true;
+		}
+	
+		if (xmlns && xmlns.match(Strophe.NS.MUC))
+		{
+			var contactBareJid = $(presence).attr('from').split('/')[0];
+			var chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
+
+		        if ($(presence).attr('type') != 'unavailable' && $(presence).attr('type') != 'error') {
+				if (chatBoxElm.length == 0) {
+					    BeeChat.UI.ScrollBoxes.addRoom(contactBareJid);
+				}
+			}
+			return true;
+		}
+
+	     }
+	}
+
 	if (Strophe.getBareJidFromJid($(presence).attr('from')).toLowerCase() != Strophe.getBareJidFromJid(_jid).toLowerCase()) {
 	    _roster.updateFromPresence(presence);
 	}
@@ -455,6 +532,16 @@ BeeChat.Core.User = function(jid)
      *    (XMLElement) message - The message stanza received
      *
      */
+    function _onMessageChatRoom(message)
+    {
+	var roomJid = $(message).attr('from').split('/');
+	
+//	BeeChat.UI.ChatBoxes.updateChatState($(message).attr('from'), message);
+	BeeChat.UI.ChatBoxes.update(roomJid[0], roomJid[1], Strophe.getText($(message).find('body')[0]), true);
+
+        return true;
+    }
+
     function _onMessageChat(message)
     {
 	var data = {
@@ -527,16 +614,29 @@ BeeChat.Core.Roster = function()
 
     this.setIcons = function(icons)
     {
-	for (var key in icons) {
-	    _items[key + '@' + BeeChat.DOMAIN].icon_small = icons[key].small;
-	    _items[key + '@' + BeeChat.DOMAIN].icon_tiny = icons[key].tiny;
+	if (_items) {
+	    for (var key in icons) {
+	        if (_items[key]) {
+	            _items[key].icon_small = icons[key].small;
+	            _items[key].icon_tiny = icons[key].tiny;
+		}
+
+	/*        if (_items[key]) {
+	            _items[key].icon_small = icons[key].small;
+	            _items[key].icon_tiny = icons[key].tiny;
+		}*/
+	    }
 	}
     }
 
     this.setStatuses = function(statuses)
     {
-	for (var key in statuses)  {
-	    _items[key + '@' + BeeChat.DOMAIN].status = statuses[key];
+	if (_items) {
+	    for (var key in statuses)  {
+		if (_items[key]) {
+		    _items[key].status = statuses[key];
+		}
+	    }
 	}
     }
 
@@ -682,7 +782,7 @@ BeeChat.Core.Roster = function()
 	for (var key in _items) {
 	    if (typeof _items[key] != 'object')
 		continue;
-	    data = data + Strophe.getNodeFromJid(key) + ',';
+	    data = data + Strophe.getBareJidFromJid(key) + ',';
 	}
 
 	return (data);
@@ -801,6 +901,10 @@ BeeChat.UI = {
 	    MEMBER_PROFILE: '<?php echo $vars['url']; ?>pg/profile/'
 	},
 
+	Sounds: {
+	    NEW_MESSAGE: 'beechat_sounds_new_message'
+	},
+
 	/*
 	Cookies: {
 	    DOMAIN: 'beechannels.com',
@@ -852,7 +956,8 @@ BeeChat.UI = {
 		    DND: 'beechat_left_availability_dnd',
 		    AWAY: 'beechat_left_availability_away',
 		    XA: 'beechat_left_availability_xa',
-		    OFFLINE: 'beechat_left_availability_offline'
+		    OFFLINE: 'beechat_left_availability_offline',
+		    ROOM: 'beechat_left_availability_room'
 		},
 
 		Right: {
@@ -860,7 +965,8 @@ BeeChat.UI = {
 		    DND: 'beechat_right_availability_dnd',
 		    AWAY: 'beechat_right_availability_away',
 		    XA: 'beechat_right_availability_xa',
-		    OFFLINE: 'beechat_right_availability_offline'
+		    OFFLINE: 'beechat_right_availability_offline',
+		    ROOM: 'beechat_right_availability_room'
 		},
 
 		Control: {
@@ -871,6 +977,7 @@ BeeChat.UI = {
 
 	    ChatBox: {
 		MAIN: 'beechat_chatbox',
+		MAINROOM: 'beechat_chatbox_room',
 		TOP: 'beechat_chatbox_top',
 		SUBTOP: 'beechat_chatbox_subtop',
 		TOP_ICON: 'beechat_chatbox_top_icon',
@@ -882,7 +989,10 @@ BeeChat.UI = {
 		STATE: 'beechat_chatbox_state',
 		MESSAGE: 'beechat_chatbox_message',
 		MESSAGE_SENDER: 'beechat_chatbox_message_sender',
-		MESSAGE_DATE: 'beechat_chatbox_message_date'
+		MESSAGE_DATE: 'beechat_chatbox_message_date',
+		CHATROOM: 'beechat_chatbox_chatroom',
+		ROOMROSTER: 'beechat_chatbox_roomroster',
+		ROSTER_ITEM: 'beechat_chatbox_roomrosteritem'
 	    },
 
 	    ScrollBox: {
@@ -953,9 +1063,11 @@ BeeChat.UI = {
      *    User details in object notation.
      *
      */
-    addActionTokens: function(url_string)
+    addActionTokens: function(url_string, sep)
     {
-	return url_string + "?__elgg_ts="+this.ts + "&__elgg_token=" + this.token;
+	if (sep == null)
+		sep = "?";
+	return url_string + sep + "__elgg_ts="+this.ts + "&__elgg_token=" + this.token;
     },
 
     getUserDetails: function(cb_func)
@@ -1031,10 +1143,20 @@ BeeChat.UI = {
 	BeeChat.UI.ContactsList.updateButtonText(connStatusMsg);
 	if (connStatusMsg == BeeChat.Events.Messages.ConnectionStates.ONLINE) {
 	    if (!g_beechat_user.isAttached()) {
+		BeeChat.UI.ScrollBoxes.isOpened = true;
 		g_beechat_user.requestRoster();
+		g_beechat_user.reconnectRooms();
 		//BeeChat.UI.ContactsList.toggleDisplay();
 		$('#' + BeeChat.UI.Resources.Elements.ID_UL_CONTACTS_LIST).show();
 		$('.' + BeeChat.UI.Resources.StyleClasses.ChatBox.INPUT + '>textarea').removeAttr('disabled');
+		for (room_idx in g_user_rooms) {
+			var room = g_user_rooms[room_idx];
+			var chatBox = BeeChat.UI.ChatBoxes.getChatBoxElm(room[0]);
+			if (chatBox.length == 0) {
+				g_beechat_user.joinRoom(room[0], room[1])
+			}
+		}
+
 	    }
 	    if (g_beechat_user.isAttached()) {
 		BeeChat.UI.loadState();
@@ -1086,8 +1208,7 @@ BeeChat.UI = {
 		type: 'POST',
 		async: false,
 		url: self.addActionTokens('<?php echo $vars['url'] . "action/beechat/save_state"; ?>'),
-		data: { beechat_conn: JSON.stringify(conn) },
-		async:false
+		data: { beechat_conn: JSON.stringify(conn) }
 	    });
 
 	/*
@@ -1158,9 +1279,14 @@ BeeChat.UI = {
 	$('#' + BeeChat.UI.Resources.Elements.ID_DIV_CHATBOXES).children().each(function() {
 		var contactBareJid = $(this).attr('bareJid');
 		//var contactBareJid = $(this).data('bareJid');
-
+		var isroom = ($(this).attr('isroom') == 'true');
+		if (isroom)
+			var roster = $(this).find('div').filter('[class=' + BeeChat.UI.Resources.StyleClasses.ChatBox.ROOMROSTER + ']');
 		data.chats[contactBareJid] = {
-		    'html_content': $(this).children().filter('[bareJid=' + contactBareJid + ']').html(),
+		    'html_content': escape($(this).children().filter('[bareJid=' + contactBareJid + ']').html()),
+		    'roster_content': isroom?escape(roster.html()):'',
+		    'isroom': $(this).attr('isroom'),
+		    'group_guid': (contactBareJid in g_beechat_rooms)?g_beechat_rooms[contactBareJid]:0,
 		    'minimized': $(this).is(':hidden'),
 		    'unread': BeeChat.UI.UnreadCountBox.getElm(contactBareJid).text()
 		};
@@ -1170,8 +1296,7 @@ BeeChat.UI = {
 		type: 'POST',
 		async: false,
 		url: self.addActionTokens('<?php echo $vars['url'] . "action/beechat/save_state"; ?>'),
-		data: { beechat_state: JSON.stringify(data) },
-		async:false 
+		data: { beechat_state: JSON.stringify(data) }
 	    });
     },
 
@@ -1188,15 +1313,20 @@ BeeChat.UI = {
 		cache: false,
 		dataType: 'json',
 		url: self.addActionTokens('<?php echo $vars['url'] . "action/beechat/get_state"; ?>'),
+		error: function() {
+			alert('error getting state');
+		},
 		success: function(json) {
 		    BeeChat.UI.AvailabilitySwitcher.initialize(json.availability);
 
 		    if (!json.contacts_list.minimized) {
-				$('#' + BeeChat.UI.Resources.Elements.ID_DIV_CONTACTS).show();
-				BeeChat.UI.ContactsList.showedStyle();
+			$('#' + BeeChat.UI.Resources.Elements.ID_DIV_CONTACTS).show();
+			BeeChat.UI.ContactsList.showedStyle();
 		    }
 
 		    g_beechat_user.getRoster().setItems(json.contacts);
+                    self.loadRosterItemsIcons();
+                    self.loadRosterItemsStatuses();
 		    g_beechat_roster_items = g_beechat_user.getRoster().getItems();
 		    BeeChat.UI.ContactsList.update(g_beechat_user.getRoster().getOnlineItems())
 		    g_beechat_user.setInitialized(true);
@@ -1206,9 +1336,14 @@ BeeChat.UI = {
 
 		    // Load save chats
 		    for (var key in json.chats) {
-			BeeChat.UI.ScrollBoxes.add(key);
+			var isroom = (json.chats[key].isroom == 'true');
+			if (isroom)
+				BeeChat.UI.ScrollBoxes.addRoom(key);
+			else
+				BeeChat.UI.ScrollBoxes.add(key);
 
 			var chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(key);
+			chatBoxElm.hide();
 
 			if (!json.chats[key].minimized) {
 			    scrollBoxElmToShow = BeeChat.UI.ScrollBoxes.getScrollBoxElm(key);
@@ -1216,8 +1351,13 @@ BeeChat.UI = {
 
 			var chatBoxContentElm = chatBoxElm.children().filter('[bareJid=' + key + ']');
 
-			chatBoxContentElm.append(json.chats[key].html_content);
+			chatBoxContentElm.append(unescape(json.chats[key].html_content));
 			chatBoxContentElm.attr({scrollTop: chatBoxContentElm.attr('scrollHeight')});
+			if (isroom) {
+				g_beechat_rooms[key] = json.chats[key].room_guid;
+				var rosterElm = chatBoxElm.find('div').filter('[class=' + BeeChat.UI.Resources.StyleClasses.ChatBox.ROOMROSTER + ']');
+				rosterElm.append(unescape(json.chats[key].roster_content));
+			}
 
 			BeeChat.UI.UnreadCountBox.update(key, json.chats[key].unread);
 		    }
@@ -1226,15 +1366,27 @@ BeeChat.UI = {
 		    else
 			scrollBoxesElm.trigger('goto', 0);
 
-		    g_beechat_user.sendPresenceAvailability(json.availability, '');
+		   // g_beechat_user.sendPresenceAvailability(json.availability, '');
 		    BeeChat.UI.ScrollBoxes.isInitialized = true;
+		    BeeChat.UI.ScrollBoxes.isOpened = true;
 
 			  for (var key in json.chats) {
 					if (json.chats[key].minimized) {
 						BeeChat.UI.ChatBoxes.getChatBoxElm(key).hide();
 						BeeChat.UI.ScrollBoxes.unselect(key);
 					}
+					else {
+						BeeChat.UI.ChatBoxes.getChatBoxElm(key).show();
+						BeeChat.UI.ScrollBoxes.select(key);
+					}
 				}
+		    for (room_idx in g_user_rooms) {
+			var room = g_user_rooms[room_idx];
+			var chatBox = BeeChat.UI.ChatBoxes.getChatBoxElm(room[0]);
+			if (chatBox.length == 0) {
+				g_beechat_user.joinRoom(room[0], room[1])
+			}
+		    }
 
 		},
 		error: function() {
@@ -1261,6 +1413,8 @@ BeeChat.UI = {
 		success: function(json) {
 		    g_beechat_user.getRoster().setIcons(json);
 		    g_beechat_roster_items = g_beechat_user.getRoster().getItems();
+
+		    BeeChat.UI.ContactsList.update(g_beechat_user.getRoster().getOnlineItems())
 		}
 	    });
     },
@@ -1283,6 +1437,7 @@ BeeChat.UI = {
 		success: function(json) {
 		    g_beechat_user.getRoster().setStatuses(json);
 		    g_beechat_roster_items = g_beechat_user.getRoster().getItems();
+		    BeeChat.UI.ContactsList.update(g_beechat_user.getRoster().getOnlineItems())
 		}
 	    });
     },
@@ -1299,6 +1454,7 @@ BeeChat.UI = {
 
 	    BeeChat.UI.loadRosterItemsIcons();
 	    BeeChat.UI.loadRosterItemsStatuses();
+	    BeeChat.UI.loadRosterItemsIcons();
 	    g_beechat_user.sendInitialPresence();
 	}
     },
@@ -1332,7 +1488,8 @@ BeeChat.UI.Resources.ReferenceTables = {
 		AWAY: BeeChat.UI.Resources.StyleClasses.Availability.Left.AWAY,
 		XA: BeeChat.UI.Resources.StyleClasses.Availability.Left.XA,
 		UNAVAILABLE: BeeChat.UI.Resources.StyleClasses.Availability.Left.OFFLINE,
-		OFFLINE: BeeChat.UI.Resources.StyleClasses.Availability.Left.OFFLINE
+		OFFLINE: BeeChat.UI.Resources.StyleClasses.Availability.Left.OFFLINE,
+		ROOM: BeeChat.UI.Resources.StyleClasses.Availability.Left.ROOM
 	    },
 
 	    Right: {
@@ -1342,7 +1499,8 @@ BeeChat.UI.Resources.ReferenceTables = {
 		AWAY: BeeChat.UI.Resources.StyleClasses.Availability.Right.AWAY,
 		XA: BeeChat.UI.Resources.StyleClasses.Availability.Right.XA,
 		UNAVAILABLE: BeeChat.UI.Resources.StyleClasses.Availability.Right.OFFLINE,
-		OFFLINE: BeeChat.UI.Resources.StyleClasses.Availability.Right.OFFLINE
+		OFFLINE: BeeChat.UI.Resources.StyleClasses.Availability.Right.OFFLINE,
+		ROOM: BeeChat.UI.Resources.StyleClasses.Availability.Right.ROOM
 	    }
 	}
     }
@@ -1409,7 +1567,7 @@ BeeChat.UI.ContactsList = {
 						BeeChat.UI.ContactsList.toggleDisplay();
 					}
 
-			    BeeChat.UI.ScrollBoxes.add($(this).attr('bareJid'), true);
+			    BeeChat.UI.ScrollBoxes.add($(this).attr('bareJid'), false, true);
 			});
 	    }
 
@@ -1562,6 +1720,7 @@ BeeChat.UI.AvailabilitySwitcher = {
  */
 BeeChat.UI.ScrollBoxes = {
     isInitialized: false,
+    isOpened: false,
 
     /** Function: initialize
      *
@@ -1608,14 +1767,24 @@ BeeChat.UI.ScrollBoxes = {
      *  Add a scrollbox to the scrollboxes bar
      *
      */
-    add: function(contactBareJid)
+    addRoom: function(contactBareJid)
+    {
+	debugXMPP('addRoom' + contactBareJid);
+        BeeChat.UI.ScrollBoxes.add(contactBareJid, true);
+	var scrollBoxElm = BeeChat.UI.ScrollBoxes.getScrollBoxElm(contactBareJid);
+	scrollBoxElm.attr('class', BeeChat.UI.Resources.StyleClasses.Availability.Left.ROOM);
+    },
+
+    add: function(contactBareJid, isroom)
     {
 	var scrollBoxesElm = $('#' + BeeChat.UI.Resources.Elements.ID_DIV_SCROLLBOXES);
 	var scrollBoxElm = scrollBoxesElm.find('ul').children().filter('[bareJid=' + contactBareJid + ']');
 
 	if (scrollBoxElm.length == 0) {
 	    var availClass = null;
-	    var pres = g_beechat_roster_items[contactBareJid] != null ? g_beechat_roster_items[contactBareJid].getStrongestPresence() : null;
+            var pres = null;
+            if (g_beechat_roster_items != undefined)
+	        pres = g_beechat_roster_items[contactBareJid] != null ? g_beechat_roster_items[contactBareJid].getStrongestPresence() : null;
 
 	    if (pres != null)
 		availClass = BeeChat.UI.Resources.ReferenceTables.Styles.Availability.Left[pres.show.toUpperCase()];
@@ -1625,6 +1794,7 @@ BeeChat.UI.ScrollBoxes = {
 	    scrollBoxElm = $('<li></li>')
 		.attr('class', BeeChat.UI.Resources.StyleClasses.LABEL + ' ' + availClass)
 		.attr('bareJid', contactBareJid)
+		.attr('isroom', isroom?'true':'false')
 		.attr('title', BeeChat.UI.Resources.Strings.Box.SHOWHIDE)
 		.text(BeeChat.UI.Utils.getTruncatedContactName(contactBareJid, 11))
 		.append($('<span></span>')
@@ -1633,6 +1803,8 @@ BeeChat.UI.ScrollBoxes = {
 			.text('X')
 			.attr('title', BeeChat.UI.Resources.Strings.Box.CLOSE)
 			.bind('click', function() {
+				if (isroom)
+					g_beechat_user.leaveRoom(contactBareJid);
 				var scrollBoxesElm = $('#' + BeeChat.UI.Resources.Elements.ID_DIV_SCROLLBOXES);
 
 				BeeChat.UI.ChatBoxes.remove($(this).parent().attr('bareJid'));
@@ -1640,11 +1812,13 @@ BeeChat.UI.ScrollBoxes = {
 			    }));
 
 	    scrollBoxesElm.find('ul').append(scrollBoxElm);
-	    BeeChat.UI.ChatBoxes.add(contactBareJid);
-	    if (arguments.length == 2 && arguments[1])
+	    BeeChat.UI.ChatBoxes.add(contactBareJid, isroom);
+	    if (arguments.length == 3 && arguments[2])
 		scrollBoxesElm.trigger('goto', scrollBoxesElm.find('ul').children().index(scrollBoxElm));
-	    BeeChat.UI.loadRosterItemsIcons();
-	    BeeChat.UI.loadRosterItemsStatuses();
+	    if (!isroom) {
+		    BeeChat.UI.loadRosterItemsStatuses();
+		    BeeChat.UI.loadRosterItemsIcons();
+	    }
 	} else {
 	    scrollBoxesElm.trigger('goto', scrollBoxesElm.find('ul').children().index(scrollBoxElm));
 	}
@@ -1745,26 +1919,28 @@ BeeChat.UI.ChatBoxes = {
     /** Function: add
      *
      */
-    add: function(contactBareJid)
+    add: function(contactBareJid, isroom)
     {
 	var chatBoxes = $('#' + BeeChat.UI.Resources.Elements.ID_DIV_CHATBOXES);
 
 	if ($(chatBoxes).children().filter('[bareJid=' + contactBareJid + ']').length == 0) {
 	    var chatBox = $('<div></div>')
-		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.MAIN)
+		.attr('class', isroom ? BeeChat.UI.Resources.StyleClasses.ChatBox.MAIN : BeeChat.UI.Resources.StyleClasses.ChatBox.MAIN)
 		.attr('bareJid', contactBareJid)
+		.attr('isroom', isroom ? 'true' : 'false')
 		.hide();
 
 	    var chatBoxTop = $('<div></div>')
-		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.TOP)
-		.append($('<a></a>')
+		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.TOP);
+	    if (!isroom)
+		chatBoxTop.append($('<a></a>')
 			.attr('href', BeeChat.UI.Resources.Paths.MEMBER_PROFILE + Strophe.getNodeFromJid(contactBareJid))
 			.append($('<img />')
 				.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.TOP_ICON)
-				.attr('src', g_beechat_roster_items[contactBareJid].icon_small)))
-		.append($('<span></span>')
+				.attr('src', (g_beechat_roster_items != null && g_beechat_roster_items[contactBareJid] != undefined)?g_beechat_roster_items[contactBareJid].icon_small:'')))
+	    chatBoxTop.append($('<span></span>')
 			.attr('class', BeeChat.UI.Resources.StyleClasses.LABEL)
-			.html('<a href="' + BeeChat.UI.Resources.Paths.MEMBER_PROFILE + Strophe.getNodeFromJid(contactBareJid) + '">' + BeeChat.UI.Utils.getTruncatedContactName(contactBareJid) + '</a>'))
+			.html(isroom?BeeChat.UI.Utils.getTruncatedContactName(contactBareJid).split('@')[0]:'<a href="' + BeeChat.UI.Resources.Paths.MEMBER_PROFILE + Strophe.getNodeFromJid(contactBareJid) + '">' + BeeChat.UI.Utils.getTruncatedContactName(contactBareJid) + '</a>'))
 		.append($('<div></div>')
 			.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.TOP_CONTROLS)
 			.append($('<span></span>')
@@ -1773,6 +1949,8 @@ BeeChat.UI.ChatBoxes = {
 				.text('X')
 				.attr('title', BeeChat.UI.Resources.Strings.Box.CLOSE)
 				.bind('click', function() {
+					if (isroom)
+						g_beechat_user.leaveRoom(contactBareJid);
 					BeeChat.UI.ChatBoxes.remove($(this).parent().parent().parent().attr('bareJid'));
 				    }))
 			.append($('<span></span>')
@@ -1788,7 +1966,7 @@ BeeChat.UI.ChatBoxes = {
 
 	    var chatBoxSubTop = $('<div></div>')
 		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.SUBTOP)
-		.append(BeeChat.UI.Utils.getTruncatedContactStatus(g_beechat_roster_items[contactBareJid].status != undefined ? g_beechat_roster_items[contactBareJid].status : ''));
+		.append(BeeChat.UI.Utils.getTruncatedContactStatus((g_beechat_roster_items != null && g_beechat_roster_items[contactBareJid] != undefined && g_beechat_roster_items[contactBareJid].status != undefined) ? g_beechat_roster_items[contactBareJid].status : ''));
 
 	    var chatBoxContent = $('<div></div>')
 		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.CONTENT)
@@ -1798,18 +1976,27 @@ BeeChat.UI.ChatBoxes = {
 		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.INPUT)
 		.append($('<textarea></textarea>')
 			.attr('bareJid', contactBareJid)
-			.bind('keypress', BeeChat.UI.ChatBoxes.onTypingMessage)
+			.bind('keypress', isroom?BeeChat.UI.ChatBoxes.onRoomTypingMessage:BeeChat.UI.ChatBoxes.onTypingMessage)
 			.bind('keyup', function(e) {
 				if ((e.keyCode ? e.keyCode : e.which) == 13)
-				    $(this).attr('value', '');
+				    $(this).val('');
 			    }));
 
 	    var chatBoxBottom = $('<div></div>')
 		.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.BOTTOM)
 		.append($('<span></span>')
 			.append($('<span></span>')));
-
-	    chatBox.append(chatBoxTop).append(chatBoxSubTop).append(chatBoxContent).append(chatBoxInput).append(chatBoxBottom).appendTo(chatBoxes);
+	    if (isroom) {
+		//var chatBoxBox = $('<div></div>')
+		//	.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.CHATROOM)
+		var chatBoxRoster = $('<div></div>')
+			.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.ROOMROSTER)
+	        //chatBoxBox.append(chatBoxTop).append(chatBoxSubTop).append(chatBoxContent).append(chatBoxInput).append(chatBoxBottom)
+		//chatBox.append(chatBoxRoster).append(chatBoxBox).appendTo(chatBoxes);
+	        chatBox.append(chatBoxTop).append(chatBoxSubTop).append(chatBoxContent).append(chatBoxInput).append(chatBoxBottom).append(chatBoxRoster).appendTo(chatBoxes);
+	    }
+	    else
+	        chatBox.append(chatBoxTop).append(chatBoxSubTop).append(chatBoxContent).append(chatBoxInput).append(chatBoxBottom).appendTo(chatBoxes);
 	}
     },
 
@@ -1839,6 +2026,9 @@ BeeChat.UI.ChatBoxes = {
 	    BeeChat.UI.UnreadCountBox.remove(contactBareJid);
 	    // Position the chatbox
 	    var pos = scrollBoxElm.position().left - (chatBoxElm.width() - scrollBoxElm.width()) + 24;
+	    chatBoxElm.css({'left': pos});
+	    if (!BeeChat.UI.ScrollBoxes.isOpened)
+			return;
 	    chatBoxElm.show().css({'left': pos});
 	    // Scroll down the content of the chatbox
 	    chatBoxContentElm.attr({scrollTop: chatBoxContentElm.attr('scrollHeight')});
@@ -1850,14 +2040,27 @@ BeeChat.UI.ChatBoxes = {
     /** Function: onTypingMessage
      *
      */
-    onTypingMessage: function(e)
+    onRoomTypingMessage: function(e) {
+        BeeChat.UI.ChatBoxes._onTypingMessage(e, true, this);
+    },
+
+    onTypingMessage: function(e) {
+        BeeChat.UI.ChatBoxes._onTypingMessage(e, false, this);
+    },
+
+    _onTypingMessage: function(e, isroom, self)
     {
 	var keyCode = (e.keyCode) ? e.keyCode : e.which;
-	var contactBareJid = $(this).attr('bareJid');
+	var contactBareJid = $(self).attr('bareJid');
 
-	if (keyCode == 13 && $(this).val() != '') {
-	    g_beechat_user.sendChatMessage(contactBareJid, jQuery.trim($(this).val()));
-	    BeeChat.UI.ChatBoxes.update(contactBareJid, BeeChat.UI.Utils.truncateString(BeeChat.UI.Resources.Strings.ChatMessages.SELF, 24), $(this).val());
+	var msgtype = BeeChat.Message.Types.CHAT;
+	if (isroom)
+ 		msgtype = BeeChat.Message.Types.GROUPCHAT;
+
+	if (keyCode == 13 && $(self).val() != '') {
+	    g_beechat_user.sendChatMessage(contactBareJid, jQuery.trim($(self).val()), msgtype);
+	    if (!isroom)
+	    	BeeChat.UI.ChatBoxes.update(contactBareJid, BeeChat.UI.Utils.truncateString(BeeChat.UI.Resources.Strings.ChatMessages.SELF, 24), $(self).val(), isroom);
 	    clearTimeout(BeeChat.UI.ChatBoxes.lastTimedPauses[contactBareJid]);
 	    BeeChat.UI.ChatBoxes.lastTimedPauses[contactBareJid] = null;
 	} else {
@@ -1876,15 +2079,47 @@ BeeChat.UI.ChatBoxes = {
 	}
     },
 
+    updateRoster: function(contactBareJid, fromName, presence)
+    {
+	var availability = $(presence).attr('type');
+	var item = $(presence).find('item');
+	var chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
+
+	if (chatBoxElm.length == 0) {
+	    	BeeChat.UI.ScrollBoxes.addRoom(contactBareJid);
+	    chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
+	}
+
+	//var chatBoxContentElm = chatBoxElm.children().filter('[bareJid=' + contactBareJid + ']');
+
+	var roster = chatBoxElm.find('div').filter('[class=' + BeeChat.UI.Resources.StyleClasses.ChatBox.ROOMROSTER + ']');
+	if (availability == 'unavailable') {
+		roster.find('div').filter('[contactName='+fromName+']').remove();
+	}
+	else {
+		var hasName = roster.find('div').filter('[contactName='+fromName+']');
+		if (hasName.length == 0) {
+			roster.append($('<div>' + fromName + '</div>')
+				.attr('class', BeeChat.UI.Resources.StyleClasses.ChatBox.ROSTER_ITEM)
+				.attr('title', item.attr('affiliation') + '/' + item.attr('role'))
+				.attr('contactName', fromName))
+		}
+	}
+    },
+
+
     /** Function: update
      *
      */
-    update: function(contactBareJid, fromName, msg)
+    update: function(contactBareJid, fromName, msg, isroom)
     {
 	var chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
 
 	if (chatBoxElm.length == 0) {
-	    BeeChat.UI.ScrollBoxes.add(contactBareJid);
+            if (isroom)
+	    	BeeChat.UI.ScrollBoxes.addRoom(contactBareJid);
+	    else
+	    	BeeChat.UI.ScrollBoxes.add(contactBareJid);
 	    chatBoxElm = BeeChat.UI.ChatBoxes.getChatBoxElm(contactBareJid);
 	}
 
@@ -2073,15 +2308,15 @@ BeeChat.UI.Utils = {
      */
     getPrintableChatMessage: function(msg)
     {
-    	var val = new String;
-		val = $('<div>' + msg + '</div>');
-		msg = val.text();
-		
-		msg = jQuery.trim(msg);
-		msg = BeeChat.UI.Utils.replaceLinks(msg);
-		msg = BeeChat.UI.Utils.replaceSmileys(msg);
+	var val = new String;
+	val = $('<div>' + msg + '</div>');
+	msg = val.text();
 
-		return msg;
+	msg = jQuery.trim(msg);
+	msg = BeeChat.UI.Utils.replaceLinks(msg);
+	msg = BeeChat.UI.Utils.replaceSmileys(msg);
+
+	return msg;
     },
 
     /** Function: getNowFormattedTime
@@ -2164,14 +2399,6 @@ function init_beechat(ts, token) {
 	}
 
 	BeeChat.UI.initialize(ts, token);
-}
-
-/** Play pock sound
- *
- */
-function DHTMLSound() {
-  document.getElementById("beechatpock").innerHTML=
-    "<embed src='<?php echo $vars['url'] ?>mod/beechat/sounds/newmessage.wav' hidden=true autostart=true loop=false>";
 }
 
 /** Window resizing

@@ -9,21 +9,18 @@
 	 * @link http://beechannels.com/
 	 */
 
-//	gatekeeper();
+	gatekeeper();
 	
-	if (isloggedin())
+	global $SESSION;
+	
+	if (!empty($_POST['beechat_state']))
 	{
-		
-		global $SESSION;
-		
-		if (!empty($_POST['beechat_state']))
-		{
-			$SESSION->offsetSet('beechat_state', $_POST['beechat_state']);
-		} 
-		elseif (!empty($_POST['beechat_conn']))
-		{
-			$SESSION->offsetSet('beechat_conn', get_input('beechat_conn'));
-		}
-	}		
+		$SESSION->offsetSet('beechat_state', get_input('beechat_state'));
+	} 
+	elseif (!empty($_POST['beechat_conn']))
+	{
+		$SESSION->offsetSet('beechat_conn', get_input('beechat_conn'));
+	}
+	
 	exit();
 ?>

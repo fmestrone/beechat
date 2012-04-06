@@ -387,6 +387,10 @@ div#beechat_scrollboxes ul li span#beechat_box_control_close {
 .beechat_left_availability_offline {
     background: no-repeat 2% 50% url('<?php echo $url; ?>mod/beechat/graphics/icons/bullet_black.png');
 }
+.beechat_left_availability_room {
+    background: no-repeat 2% 50% url('<?php echo $url; ?>mod/beechat/graphics/icons/muc_icon.png');
+}
+
 
 
 .beechat_right_availability_chat {
@@ -403,6 +407,9 @@ div#beechat_scrollboxes ul li span#beechat_box_control_close {
 }
 .beechat_right_availability_offline {
     background: no-repeat 96% 50% url('<?php echo $url; ?>mod/beechat/graphics/icons/bullet_black.png');
+}
+.beechat_right_availability_room {
+    background: no-repeat 96% 50% url('<?php echo $url; ?>mod/beechat/graphics/icons/muc_icon.png');
 }
 
 /*
@@ -448,6 +455,59 @@ div.beechat_chatbox a {
 div.beechat_chatbox a:hover {
     text-decoration: underline;
 }
+div.beechat_chatbox_roomroster {
+    position: absolute;
+    width: 100px;
+    height: 276px;
+    left: -101px;
+    bottom: -2px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+
+    border: 1px solid #4B6C8F;
+
+    background-color: #EEEEEE;
+}
+div.beechat_chatbox_roomrosteritem {
+    background-color: #FFFFFF;
+    margin: 3px;
+    padding-left: 2px;
+}
+div.beechat_chatbox_chatroom {
+    position: absolute;
+    width: 240px;
+    height: 300px;
+    left: 100px;
+    bottom: 0px;
+    margin: 0;
+    padding: 0;
+
+    background-color: #DDDDDD;
+}
+div.beechat_chatbox_chatroom a {
+    color: white;
+}
+div.beechat_chatbox_chatroom a:hover {
+    text-decoration: underline;
+}
+
+div.beechat_chatbox_room {
+    position: absolute;
+    width: 340px;
+    height: 300px;
+    bottom: 25px;
+    margin: 0;
+    padding: 0;
+
+    background-color: #DDDDDD;
+}
+div.beechat_chatbox_room a {
+    color: white;
+}
+div.beechat_chatbox_room a:hover {
+    text-decoration: underline;
+}
 div.beechat_chatbox_top {
     width: 238px;
     height: 24px;
@@ -467,8 +527,8 @@ div.beechat_chatbox_top .beechat_chatbox_top_icon {
     left: 4px;
     z-index: 2;
 
-    widht: 40px;
-    height: 40px;
+    widht: 50px;
+    height: 50px;
 }
 div.beechat_chatbox_top .beechat_label {
     float: left;
